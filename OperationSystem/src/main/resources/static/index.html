@@ -1,0 +1,25 @@
+<textarea id="code"></textarea>
+<textarea id="input"></textarea>
+<button onclick="submit()">提交</button>
+
+<script>
+    function submit() {
+        fetch("/judge/cpp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                code: document.getElementById("code").value,
+                input: document.getElementById("input").value
+            })
+        })
+            .then(res => res.json())
+            .then(data => {
+                // 新增：打印后端返回的所有数据，看具体有哪些字段
+                console.log("后端返回的数据：", data);
+                // 再弹框，方便你看
+                alert(data.output || "后端返回的字段不是output，请看控制台！");
+            })
+            // 新增：处理请求失败的情况（比如网络错、后端报错）
+            .catch(err => alert("请求失败：" + err));
+    }
+</script>
