@@ -4,6 +4,7 @@ import lombok.Data;
 
 @Data
 public class JudgeRequest {
+    public String probNum;
     public String code;
-    public String input;
+    public String language;
 }
