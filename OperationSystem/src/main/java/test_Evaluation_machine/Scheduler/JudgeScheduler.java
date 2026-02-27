@@ -1,5 +1,6 @@
 package test_Evaluation_machine.Scheduler;
 
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -7,10 +8,12 @@ import test_Evaluation_machine.Mapper.ProblemMapper;
 import test_Evaluation_machine.Pojo.JudgeRequest;
 import test_Evaluation_machine.Pojo.JudgeResponse;
 import test_Evaluation_machine.Pojo.JudgeTask;
+import test_Evaluation_machine.Pojo.Problem;
 import test_Evaluation_machine.Service.JudgeService;
 import test_Evaluation_machine.Utils.TaskResponseHolder;
 
 import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,6 +28,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class JudgeScheduler {
     @Autowired
     private JudgeService judgeService;
+    @Autowired
     private ProblemMapper problemMapper;
 
         private static final int Judger_NUM=3; //如果有三台判题机
@@ -44,7 +48,7 @@ public class JudgeScheduler {
 
         private Thread[] workerThreads;
 
-        private SchedulingStrategy schedulingStrategy = new PrioritySchedulingStrategy(); //调度算法，待扩展
+        private SchedulingStrategy schedulingStrategy = new FCFSSchedulingStrategy(); //调度算法，待扩展
 
         private final TaskResponseHolder responseHolder = TaskResponseHolder.getInstance();
 
@@ -59,20 +63,20 @@ public class JudgeScheduler {
                 workerThreads[i] = new Thread(new Worker("Worker-" + i));
                 workerThreads[i].setDaemon(false);
                 workerThreads[i].start();
-                log.info("初始化Worker线程：{}", workerThreads[i].getWorkerId());
+                //log.info("初始化Worker线程：{}", workerThreads[i].getWorkerId());
             }
         }
 
     /**
      * 销毁：关闭Worker线程
      */
-        @PostConstruct
+        @PreDestroy
         public void destroy() {
             if(workerThreads==null) return;
             //中断所有worker线程
             for (Thread worker : workerThreads) {
                 worker.interrupt();
-                log.info("中断Worker线程：{}", worker.getWorkerId());
+                //log.info("中断Worker线程：{}", worker.getWorkerId());
             }
 
             for (Thread worker : workerThreads) {
@@ -95,7 +99,7 @@ public class JudgeScheduler {
         public boolean submitTaskToSchedulerQueue(JudgeTask task) throws InterruptedException {
             queueLock.lock();//加锁
             try {
-                //任务队列已满，生产者等到
+                //任务队列已满，生产者等待
                 while(taskQueue.size() >= TASK_QUEUE_CAPACITY) {
                     log.warn("任务队列已满，生产者等待：{}", task.getTaskId());
                     notFull.await();
@@ -113,7 +117,9 @@ public class JudgeScheduler {
             }
         }
 
-        // ====================== Worker线程（消费者/执行器）======================
+
+        // ====================== Worker线程（消费者）======================
+        @Data
         private class Worker implements Runnable {
             private final String workerId;
             public Worker(String workerId) {
@@ -177,7 +183,7 @@ public class JudgeScheduler {
             try {
                 task.setStatus(JudgeTask.TaskStatus.RUNNING);
                 task.setStartTime(System.currentTimeMillis());
-                JudgeResponse response = judgeService.judgeCpp(task);
+                JudgeResponse response = judgeService.judgeInDocker(task);
                 responseHolder.saveJudgeResponse(task.getTaskId(), response);
                 log.info("任务{}执行完成，结果已保存", task.getTaskId());
             }catch (Exception e) {
@@ -195,6 +201,7 @@ public class JudgeScheduler {
         public String submitJudgeTaskToHolder(JudgeRequest request) throws InterruptedException {
             //构造task
             JudgeTask task = new JudgeTask(request.getLanguage(),request.getCode(),request.getProbNum());
+            task.setProblem(problemMapper.getProblem(request.getProbNum()));
             //注册任务，初始化等待锁
             responseHolder.registerJudgeTask(task.getTaskId());
             //提交任务到调度队列
@@ -209,7 +216,23 @@ public class JudgeScheduler {
          * 对外提供：根据任务ID获取判题结果（供Controller调用）
          */
         public JudgeResponse getJudgeResponse(String taskId) throws InterruptedException{
-            return responseHolder.getResponse(taskId,5,TimeUnit.SECONDS);
+            // docker 启动 + 编译 + 多测试点执行通常 > 5 秒，固定 5 秒会导致“假超时”
+            return getJudgeResponse(taskId, 60, TimeUnit.SECONDS);
+        }
+
+        /**
+         * 可配置等待超时（用于同步接口）
+         */
+        public JudgeResponse getJudgeResponse(String taskId, long timeout, TimeUnit unit) throws InterruptedException {
+            return responseHolder.getResponse(taskId, timeout, unit);
+        }
+
+        /**
+         * 非阻塞获取结果，用于轮询接口
+         * @return 未完成则返回 null
+         */
+        public JudgeResponse tryGetJudgeResponse(String taskId) throws InterruptedException {
+            return responseHolder.getResponse(taskId, 60, TimeUnit.MILLISECONDS);
         }
 
 

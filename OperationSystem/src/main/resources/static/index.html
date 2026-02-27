@@ -1,25 +1,409 @@
-<textarea id="code"></textarea>
-<textarea id="input"></textarea>
-<button onclick="submit()">提交</button>
+<!--<textarea id="code"></textarea>-->
+<!--<textarea id="input"></textarea>-->
+<!--<button onclick="submit()">提交</button>-->
+
+<!--<script>-->
+<!--    function submit() {-->
+<!--        fetch("/judge/cpp", {-->
+<!--            method: "POST",-->
+<!--            headers: { "Content-Type": "application/json" },-->
+<!--            body: JSON.stringify({-->
+<!--                code: document.getElementById("code").value,-->
+<!--                input: document.getElementById("input").value-->
+<!--            })-->
+<!--        })-->
+<!--            .then(res => res.json())-->
+<!--            .then(data => {-->
+<!--                // 新增：打印后端返回的所有数据，看具体有哪些字段-->
+<!--                console.log("后端返回的数据：", data);-->
+<!--                // 再弹框，方便你看-->
+<!--                alert(data.output || "后端返回的字段不是output，请看控制台！");-->
+<!--            })-->
+<!--            // 新增：处理请求失败的情况（比如网络错、后端报错）-->
+<!--            .catch(err => alert("请求失败：" + err));-->
+<!--    }-->
+<!--</script>-->
+
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <title>简易 OJ 在线评测</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #0f172a;
+            color: #e5e7eb;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        header {
+            padding: 16px 24px;
+            background: #020617;
+            border-bottom: 1px solid #1e293b;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        header h1 {
+            margin: 0;
+            font-size: 18px;
+            color: #f9fafb;
+        }
+        main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 2fr 1.4fr;
+            gap: 16px;
+            padding: 16px 24px 24px;
+        }
+        @media (max-width: 900px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+        }
+        .card {
+            background: #020617;
+            border-radius: 10px;
+            border: 1px solid #1e293b;
+            padding: 16px;
+            box-shadow: 0 18px 50px rgba(15,23,42,0.6);
+        }
+        .card-title {
+            margin: 0 0 12px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #e5e7eb;
+        }
+        .field {
+            margin-bottom: 12px;
+        }
+        .field label {
+            display: block;
+            font-size: 13px;
+            margin-bottom: 4px;
+            color: #9ca3af;
+        }
+        input[type="text"],
+        select,
+        textarea {
+            width: 100%;
+            border-radius: 6px;
+            border: 1px solid #1e293b;
+            background: #020617;
+            color: #e5e7eb;
+            padding: 8px 10px;
+            font-family: inherit;
+            font-size: 13px;
+            outline: none;
+            transition: border-color .15s, box-shadow .15s, background .15s;
+        }
+        textarea {
+            resize: vertical;
+            min-height: 260px;
+            font-family: "Fira Code", "JetBrains Mono", Consolas, monospace;
+            line-height: 1.4;
+        }
+        input:focus, select:focus, textarea:focus {
+            border-color: #38bdf8;
+            box-shadow: 0 0 0 1px rgba(56,189,248,0.4);
+        }
+        .btn-row {
+            margin-top: 8px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        button {
+            border-radius: 999px;
+            border: none;
+            padding: 8px 18px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background .15s, box-shadow .15s, transform .05s;
+        }
+        .btn-primary {
+            background: linear-gradient(to right, #38bdf8, #0ea5e9);
+            color: #0f172a;
+            box-shadow: 0 10px 30px rgba(56,189,248,0.4);
+        }
+        .btn-primary:hover {
+            filter: brightness(1.05);
+            transform: translateY(-1px);
+        }
+        .btn-secondary {
+            background: #0b1120;
+            color: #e5e7eb;
+            border: 1px solid #1f2937;
+        }
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .status-AC { background: rgba(34,197,94,0.2); color: #4ade80; }
+        .status-WA, .status-RE { background: rgba(248,113,113,0.2); color: #fca5a5; }
+        .status-TLE, .status-MLE { background: rgba(250,204,21,0.2); color: #facc15; }
+        .status-CE { background: rgba(248,113,113,0.2); color: #fecaca; }
+        .status-PENDING { background: rgba(148,163,184,0.2); color: #cbd5f5; }
+        .status-UNKNOWN { background: rgba(148,163,184,0.2); color: #cbd5f5; }
+        .result-block {
+            margin-top: 8px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            background: #020617;
+            border: 1px solid #1e293b;
+            font-size: 12px;
+            max-height: 260px;
+            overflow: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .result-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            font-size: 12px;
+            color: #9ca3af;
+            margin-top: 6px;
+        }
+        .badge {
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: #020617;
+            border: 1px solid #1e293b;
+        }
+        .hint {
+            font-size: 11px;
+            color: #6b7280;
+            margin-top: 4px;
+        }
+        footer {
+            font-size: 11px;
+            color: #6b7280;
+            text-align: center;
+            padding: 8px 0 10px;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>操作系统 OJ 在线评测</h1>
+    <span style="font-size:12px;color:#9ca3af;">
+        后端接口：<code style="font-size:11px;">POST /judge/submit</code> + <code style="font-size:11px;">GET /judge/result/{taskId}</code>
+    </span>
+</header>
+
+<main>
+    <!-- 左侧：题目信息 + 代码编辑 -->
+    <section class="card">
+        <h2 class="card-title">提交代码</h2>
+
+        <div class="field">
+            <label for="probNum">题目编号</label>
+            <input id="probNum" type="text" placeholder="例如：P1001" />
+        </div>
+
+        <div class="field">
+            <label for="language">编程语言</label>
+            <select id="language">
+                <option value="cpp">C++ (g++)</option>
+                <!-- 以后可以扩展 Java / Python 等 -->
+            </select>
+        </div>
+
+        <div class="field">
+            <label for="code">代码</label>
+            <textarea id="code" spellcheck="false" placeholder="// 在此粘贴你的 C++ 程序
+#include &lt;bits/stdc++.h&gt;
+using namespace std;
+int main() {
+    ios::sync_with_stdio(false);
+    cin.tie(nullptr);
+
+    int a, b;
+    if (!(cin &gt;&gt; a &gt;&gt; b)) return 0;
+    cout &lt;&lt; (a + b) &lt;&lt; '\n';
+    return 0;
+}"></textarea>
+        </div>
+
+        <div class="btn-row">
+            <button class="btn-primary" id="submitBtn">提交评测</button>
+            <button class="btn-secondary" id="fillSampleBtn">填入示例代码</button>
+            <span id="requestStatus" style="font-size:12px;color:#9ca3af;"></span>
+        </div>
+    </section>
+
+    <!-- 右侧：评测结果展示 -->
+    <section class="card">
+        <h2 class="card-title">评测结果</h2>
+
+        <div id="statusLine" style="margin-bottom:8px;font-size:13px;color:#9ca3af;">
+            尚未提交评测。
+        </div>
+
+        <div class="result-meta" id="metaLine" style="display:none;">
+            <span class="badge" id="timeMeta"></span>
+            <span class="badge" id="memoryMeta"></span>
+        </div>
+
+        <div class="result-block" id="outputBlock" style="display:none;"></div>
+
+        <div class="result-block" id="errorBlock" style="display:none;margin-top:8px;border-color:#b91c1c;color:#fecaca;"></div>
+    </section>
+</main>
+
+
 
 <script>
-    function submit() {
-        fetch("/judge/cpp", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                code: document.getElementById("code").value,
-                input: document.getElementById("input").value
-            })
-        })
-            .then(res => res.json())
-            .then(data => {
-                // 新增：打印后端返回的所有数据，看具体有哪些字段
-                console.log("后端返回的数据：", data);
-                // 再弹框，方便你看
-                alert(data.output || "后端返回的字段不是output，请看控制台！");
-            })
-            // 新增：处理请求失败的情况（比如网络错、后端报错）
-            .catch(err => alert("请求失败：" + err));
+    const submitBtn = document.getElementById("submitBtn");
+    const fillSampleBtn = document.getElementById("fillSampleBtn");
+    const requestStatus = document.getElementById("requestStatus");
+    const statusLine = document.getElementById("statusLine");
+    const metaLine = document.getElementById("metaLine");
+    const timeMeta = document.getElementById("timeMeta");
+    const memoryMeta = document.getElementById("memoryMeta");
+    const outputBlock = document.getElementById("outputBlock");
+    const errorBlock = document.getElementById("errorBlock");
+
+    function setStatusPill(text, statusCode) {
+        const span = document.createElement("span");
+        span.textContent = text;
+        span.className = "status-pill status-" + (statusCode || "UNKNOWN");
+        return span;
     }
+
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    fillSampleBtn.addEventListener("click", () => {
+        document.getElementById("probNum").value = "P1001";
+        document.getElementById("language").value = "cpp";
+    });
+
+    submitBtn.addEventListener("click", async () => {
+        const probNum = document.getElementById("probNum").value.trim();
+        const code = document.getElementById("code").value;
+        const language = document.getElementById("language").value;
+
+        if (!probNum) {
+            alert("请先填写题目编号（problemNum）");
+            return;
+        }
+        if (!code.trim()) {
+            alert("代码不能为空");
+            return;
+        }
+
+        requestStatus.textContent = "正在提交评测...";
+        submitBtn.disabled = true;
+
+        // 清理旧结果
+        statusLine.textContent = "评测中，请稍候...";
+        statusLine.innerHTML = "";
+        statusLine.appendChild(setStatusPill("Running", "UNKNOWN"));
+        metaLine.style.display = "none";
+        outputBlock.style.display = "none";
+        errorBlock.style.display = "none";
+
+        try {
+            const submitRes = await fetch("/judge/submit", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ probNum, code, language })
+            });
+
+            if (!submitRes.ok) {
+                throw new Error("HTTP " + submitRes.status);
+            }
+
+            const submitData = await submitRes.json();
+            console.log("提交返回：", submitData);
+
+            const taskId = submitData.taskId;
+            if (!taskId) {
+                throw new Error("后端未返回 taskId");
+            }
+
+            requestStatus.textContent = "已提交任务：" + taskId + "，等待结果...";
+            statusLine.innerHTML = "";
+            statusLine.appendChild(setStatusPill("PENDING", "PENDING"));
+
+            // 轮询结果：最多等待 120 秒（每秒一次）
+            let data = null;
+            for (let i = 0; i < 120; i++) {
+                const resultRes = await fetch("/judge/result/" + encodeURIComponent(taskId));
+                if (!resultRes.ok) {
+                    throw new Error("HTTP " + resultRes.status);
+                }
+
+                const resultData = await resultRes.json();
+                console.log("轮询结果：", resultData);
+
+                const st = resultData.status || "UNKNOWN_ERROR";
+                const stText = typeof st === "string" ? st : (st.name || JSON.stringify(st));
+
+                if (stText && stText !== "PENDING") {
+                    data = resultData;
+                    break;
+                }
+
+                await sleep(1000);
+            }
+
+            if (!data) {
+                throw new Error("等待结果超时（轮询 120 秒未完成）");
+            }
+
+            const status = data.status || "UNKNOWN_ERROR";
+            const statusText = typeof status === "string" ? status : (status.name || JSON.stringify(status));
+
+            statusLine.innerHTML = "";
+            // 这里前端只是展示后端状态，后端已经做了 AC/WA/TLE/RE/CE 等映射
+            statusLine.appendChild(setStatusPill(statusText, statusText));
+
+            // 时间 / 内存
+            timeMeta.textContent = "用时: " + (data.usedTime ?? "-") + " ms";
+            memoryMeta.textContent = "内存: " + (data.usedMemory ?? "-") + " B";
+            metaLine.style.display = "flex";
+
+            // 标准输出
+            if (data.output) {
+                outputBlock.style.display = "block";
+                outputBlock.textContent = data.output;
+            } else {
+                outputBlock.style.display = "none";
+            }
+
+            // 错误信息
+            if (data.error) {
+                errorBlock.style.display = "block";
+                errorBlock.textContent = data.error;
+            } else {
+                errorBlock.style.display = "none";
+            }
+
+            requestStatus.textContent = "评测完成。";
+        } catch (err) {
+            console.error(err);
+            requestStatus.textContent = "请求失败";
+            statusLine.textContent = "请求失败：" + err.message;
+            metaLine.style.display = "none";
+            outputBlock.style.display = "none";
+            errorBlock.style.display = "none";
+        } finally {
+            submitBtn.disabled = false;
+        }
+    });
 </script>
+</body>
+</html>

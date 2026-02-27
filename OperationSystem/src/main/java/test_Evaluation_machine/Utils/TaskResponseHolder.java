@@ -56,7 +56,8 @@ public class TaskResponseHolder {
     public JudgeResponse getResponse(String taskId,long timeout, TimeUnit timeUnit) throws InterruptedException {
         CountDownLatch latch = latchMap.get(taskId);
         if(latch == null){ //说明任务已执行完成
-            return responseMap.get(taskId);
+            // 已完成：返回并移除结果，避免重复读取与内存占用
+            return responseMap.remove(taskId);
         }
         //阻塞等待结果
         boolean success = latch.await(timeout, timeUnit);
