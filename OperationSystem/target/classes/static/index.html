@@ -355,10 +355,6 @@
                     <button class="btn-secondary" onclick="generateAICode()">AI 生成解题代码</button>
                 </div>
 
-                <div class="btn-row" style="margin-top: 12px;">
-                    <button class="btn-primary" id="detailSubmitBtn" onclick="submitCode()">提交评测</button>
-                    <button class="btn-secondary" onclick="fillSampleCode()">填入示例代码</button>
-                </div>
             </div>
 
             <div class="result-area" id="detailResultArea" style="display: none;">
@@ -497,7 +493,6 @@
     }
     });
 
-    });
     window.addEventListener('hashchange', renderPage);
 
     // 根据hash渲染对应页面
@@ -826,8 +821,6 @@ int main() {
         }
     }
 
-
-    }
 
     // 提交代码
     async function submitCode() {

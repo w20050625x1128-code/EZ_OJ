@@ -21,12 +21,16 @@ import java.util.concurrent.TimeUnit;
 @Service
 @Slf4j // 记得加这个注解，才能用log
 public class JudgeService {
-    private static final String WORKSPACE = "C:/Users/wangs/Desktop/Judger_test";
+    private static final String WORKSPACE = "E:/OJ_TestCase";
     private static final String CPP_COMPILE_CMD = "g++ %s -o %s 2>&1";
     private static final long DOCKER_STARTUP_GRACE_MS = 8000; // Windows 下 docker run 启动开销缓冲
 
     @Autowired
     private SubmitRecordService submitRecordService; // 注入提交记录Service
+
+    // ========== 新增：注入星火Ultra AI服务 ==========
+    @Autowired
+    private SparkUltraService sparkUltraService;
 
     public JudgeResponse judgeInDocker(JudgeTask task) throws Exception{
         Problem problem = task.getProblem();
@@ -40,7 +44,18 @@ public class JudgeService {
         response.setUsedTime(record.getUsedTime());
         response.setUsedMemory(record.getUsedMemory());
         response.setStatus(RecordToResponseStatusMapper(record.getJudgeStatus()));
-        response.setOutput(record.getJudgeMessage());
+
+        // ========== 新增：调用星火Ultra AI分析代码 ==========
+        String aiAnalysis = sparkUltraService.analyzeCode(
+                task,
+                problem,
+                record.getJudgeStatus(),
+                record.getErrorMsg()
+        );
+        // 把AI分析拼接到判题输出中
+        String finalOutput = record.getJudgeMessage() + "\n\n===== 星火Ultra AI代码分析 =====\n" + aiAnalysis;
+        response.setOutput(finalOutput);
+        // ==================================================
         return response;
     }
 
